@@ -1,0 +1,38 @@
+# Self-host wOS Email: docker compose up
+#   The app, Postgres, and (with --profile testmail) a local test mail server so you can try everything
+#   without a real mailbox. Copy .env.example to .env first and fill in the two secrets.
+#
+#   docker compose up -d                      the app on http://localhost:3990 with Postgres
+#   docker compose --profile testmail up -d   plus GreenMail (Apache-2.0): SMTP on 3025, IMAP on 3143,
+#                                             any user, any password. Connect mailboxes with server
+#                                             "greenmail", IMAP port 3143, SMTP port 3025.
+services:
+  email:
+    build: .
+    ports: ["3990:3990"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://wos:wos@db:5432/wos_email
+      FILES_DIR: /data/files
+    volumes: ["email-data:/data"]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: wos, POSTGRES_PASSWORD: wos, POSTGRES_DB: wos_email }
+    volumes: ["db-data:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U wos"], interval: 5s, timeout: 3s, retries: 20 }
+    restart: unless-stopped
+
+  greenmail:
+    profiles: ["testmail"]
+    image: greenmail/standalone:2.1.2
+    environment:
+      GREENMAIL_OPTS: -Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled
+    ports: ["3025:3025", "3143:3143"]
+
+volumes:
+  email-data:
+  db-data:

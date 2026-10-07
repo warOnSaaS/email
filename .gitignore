@@ -6,3 +6,4 @@ data
 .names
 instances/*.names
 *.tmp.mjs
+!.env.example
