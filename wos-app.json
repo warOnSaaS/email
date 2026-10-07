@@ -1,32 +1,26 @@
 {
+  "$schema": "https://raw.githubusercontent.com/warOnSaaS/suite/main/packages/manifest/wos-app.schema.json",
   "id": "email",
   "name": "Email",
+  "description": "Fast, keyboard-first email with AI sorting and drafts, and the team address that runs wOS by email.",
   "version": "0.1.0",
-  "description": "A fast, keyboard-first email client with AI triage and drafts, and the team address that runs wOS by email.",
   "license": "AGPL-3.0-only",
   "requires": { "core": ">=0.1" },
   "tools": "./tools.json",
   "tables": "./migrations",
-  "server": "./lib/index.mjs",
-  "screens": "./public/app/app.mjs",
-  "routes": { "mcp": "/mcp", "tools": "/api/tools/<name>", "signedLinks": "/act/<token>", "cron": "/api/cron" },
-  "events": ["email.message.received", "email.message.sent", "email.command.received", "email.alert.answered"],
+  "server": "./server.mjs",
+  "screens": "./dist/screens.mjs",
+  "icon": "mail",
+  "nav": { "label": "Email", "order": 40 },
+  "events": {
+    "emits": ["email.message.received", "email.message.sent", "email.command.received", "email.alert.answered"],
+    "listens": []
+  },
   "needs": {
     "services": [],
-    "external": ["a mailbox with IMAP and SMTP for each person", "a dedicated mailbox for the team command address (run by email)"],
-    "env": ["DATABASE_URL", "EMAIL_SECRET_KEY", "OAUTH_SECRET", "PUBLIC_URL", "GITHUB_OAUTH_CLIENT_ID", "GITHUB_OAUTH_CLIENT_SECRET", "SMTP_URL", "MODEL_BASE_URL", "MODEL_API_KEY", "MODEL_NAME"],
     "permissions": ["notifications"],
-    "desktop": ["mailto"]
+    "desktop": ["mailto"],
+    "env": ["EMAIL_SECRET_KEY", "OAUTH_SECRET", "MODEL_BASE_URL", "MODEL_API_KEY", "MODEL_NAME", "SYNC_SECONDS", "POLL_SECONDS", "SYNC_INITIAL"]
   },
-  "data": {
-    "onDisable": "keep",
-    "exports": ["threads", "messages", "drafts", "settings"],
-    "tables": ["members", "settings", "mail_accounts", "mail_threads", "mail_messages", "mail_drafts", "approvals", "inbound_commands", "tokens", "alerts", "audit_log"],
-    "files": "FILES_DIR/bodies"
-  },
-  "library": {
-    "runByEmail": "./lib/runbyemail/index.mjs",
-    "exports": ["RunByEmail", "parseAnswer"],
-    "note": "The suite core registers each enabled app with registerApp(id, { tools, call }), sends alerts with sendAlert(), and reads answers with onAlertAnswer()."
-  }
+  "data": { "onDisable": "keep", "exports": ["accounts", "threads", "messages", "drafts", "settings", "members", "commands", "alerts"] }
 }

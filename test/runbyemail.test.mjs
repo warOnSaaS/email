@@ -80,7 +80,7 @@ test('deleting by email needs a signed link; looking at the link does nothing, t
   await sendAs(memory, DEMO.me, { subject: 'cleanup', text: `delete ${t.id}` });
   await app.rbe.poll();
   const reply = (await inbox(memory, DEMO.me)).at(-1);
-  const link = /https:\/\/mail\.test\/act\/(\S+)/.exec(reply.text)?.[1];
+  const link = /https:\/\/mail\.test\/hooks\/email\/act\/(\S+)/.exec(reply.text)?.[1];
   assert.ok(link, reply.text);
   assert.ok(await app.mb.thread(t.id), 'not deleted by the email alone');
 
@@ -88,16 +88,16 @@ test('deleting by email needs a signed link; looking at the link does nothing, t
   await new Promise((r) => srv.listen(0, r));
   const base = `http://localhost:${srv.address().port}`;
   try {
-    const look = await fetch(`${base}/act/${link}`);
+    const look = await fetch(`${base}/hooks/email/act/${link}`);
     assert.equal(look.status, 200);
     assert.match(await look.text(), /Yes, do it/);
     assert.ok(await app.mb.thread(t.id), 'opening the link (as a mail scanner would) deletes nothing');
-    const go = await fetch(`${base}/act/${link}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `t=${encodeURIComponent(link)}` });
+    const go = await fetch(`${base}/hooks/email/act/${link}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `t=${encodeURIComponent(link)}` });
     assert.equal(go.status, 200, await go.clone().text());
     await assert.rejects(app.mb.thread(t.id), /No thread/);
-    const again = await fetch(`${base}/act/${link}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `t=${encodeURIComponent(link)}` });
+    const again = await fetch(`${base}/hooks/email/act/${link}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `t=${encodeURIComponent(link)}` });
     assert.equal(again.status, 400);
-    const forged = await fetch(`${base}/act/${link.slice(0, -3)}abc`);
+    const forged = await fetch(`${base}/hooks/email/act/${link.slice(0, -3)}abc`);
     assert.equal(forged.status, 400);
   } finally { srv.closeAllConnections(); srv.close(); }
 });

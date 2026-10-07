@@ -57,7 +57,7 @@ test('tools.json and wos-app.json match the code', async () => {
   assert.equal(m.version, JSON.parse(fs.readFileSync('package.json', 'utf8')).version);
 });
 
-test('every button and form on every screen names a tool, or only changes the screen', async () => {
+test('every button and form on every screen names a tool, or says why not (data-tool="none" data-why)', async () => {
   const missing = [];
   const unknown = [];
   let actions = 0;
@@ -65,8 +65,8 @@ test('every button and form on every screen names a tool, or only changes the sc
     for (const tag of html.match(/<(button|form)\b[^>]*>/g) ?? []) {
       actions++;
       const tool = /data-tool="([^"]+)"/.exec(tag)?.[1];
+      if (tool === 'none') { if (!/data-why="[^"]{8,}"/.test(tag)) missing.push(`${p}: data-tool="none" without data-why: ${tag.slice(0, 120)}`); continue; }
       if (tool) { if (!NAMES.has(tool)) unknown.push(`${p}: ${tool}`); continue; }
-      if (/data-ui="/.test(tag)) continue;
       missing.push(`${p}: ${tag.slice(0, 120)}`);
     }
   }
@@ -81,7 +81,7 @@ test('every keyboard shortcut runs a tool or only moves around', () => {
     if (what.startsWith('ui:') || what.startsWith('nav:')) continue;
     assert.ok(NAMES.has(what), `${key} names ${what}, which is not a tool`);
   }
-  const client = fs.readFileSync('public/app/app.mjs', 'utf8');
+  const client = fs.readFileSync('public/app/wire.mjs', 'utf8');
   for (const [key] of KEYS) {
     const k = key.split(' ').pop().replace('Mod+', '').replace('Shift+', '');
     assert.ok(client.includes(`${JSON.stringify(k).slice(1, -1)}`), `the browser handles ${key}`);
@@ -147,7 +147,7 @@ test('the browser makes no request that is not a tool call', async (t) => {
   await page.waitForLoadState('networkidle');
   // Every button in the open dialogs too (compose, keys, label), as the screen shows them.
   await page.keyboard.press('c');
-  const loose = await page.evaluate(() => [...document.querySelectorAll('button, form')].filter((el) => !el.dataset.tool && !el.dataset.ui).map((el) => el.outerHTML.slice(0, 100)));
+  const loose = await page.evaluate(() => [...document.querySelectorAll('button, form, a[data-tool]')].filter((el) => !el.dataset.tool || (el.dataset.tool === 'none' && !el.dataset.why)).map((el) => el.outerHTML.slice(0, 100)));
   await browser.close();
   assert.deepEqual(loose, []);
   assert.ok(seen.length >= 2, `saw ${seen.join(', ')}`);

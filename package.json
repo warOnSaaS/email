@@ -20,15 +20,15 @@
     "./wos-app.json": "./wos-app.json"
   },
   "scripts": {
-    "start": "node server.mjs",
-    "dev": "node server.mjs --demo",
-    "test": "node --test test/*.test.mjs",
-    "test:e2e": "node --test test/e2e/*.test.mjs",
+    "start": "node standalone.mjs",
+    "dev": "node standalone.mjs --demo",
+    "test": "node --test --test-force-exit --test-timeout=60000 test/*.test.mjs",
+    "test:e2e": "node --test --test-force-exit --test-timeout=180000 test/e2e/*.test.mjs",
     "tools:json": "node scripts/tools-json.mjs",
     "sync-kit": "node scripts/sync-kit.mjs",
     "shots": "node scripts/shots.mjs",
     "check:clean": "node scripts/check-clean.mjs",
-    "check": "node scripts/tools-json.mjs --check && node --test test/*.test.mjs && node scripts/check-clean.mjs"
+    "check": "node scripts/tools-json.mjs --check && node --test --test-force-exit test/*.test.mjs && node scripts/check-clean.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -42,6 +42,7 @@
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "playwright": "^1.63.0"
   }
 }

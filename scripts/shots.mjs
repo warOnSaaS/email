@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { start } from '../server.mjs';
+import { start } from '../standalone.mjs';
 
 const out = path.resolve('.shots');
 fs.mkdirSync(out, { recursive: true });
