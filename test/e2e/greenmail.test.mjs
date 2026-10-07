@@ -80,7 +80,7 @@ test('connect two mailboxes over IMAP and SMTP, with the password encrypted in P
   const conn = { imap_host: HOST, imap_port: IMAP, smtp_host: HOST, smtp_port: SMTP, password: 'test-password-e2e' };
   await call('email.connect_account', { address: 'sam@acme.example', name: 'Sam Rivera', ...conn });
   await call('email.connect_account', { address: 'ops@acme.example', purpose: 'commands', ...conn });
-  const rows = await db.all('SELECT auth FROM mail_accounts');
+  const rows = await db.all('SELECT auth FROM email_accounts');
   assert.equal(rows.length, 2);
   assert.ok(rows.every((r) => !r.auth.includes('test-password')));
 });
@@ -96,7 +96,7 @@ test('a command email is verified, done, and answered in the teammate\'s inbox',
   const cmdId = await sendSigned({ from: 'sam@acme.example', to: 'ops@acme.example', subject: 'search lease', text: 'search lease' });
   const polled = await until(async () => { const r = await app.rbe.poll(); return r.handled ? r : null; });
   assert.equal(polled.results[0].accepted, 1, polled.results[0].reason);
-  const verified = JSON.parse((await db.get('SELECT verified FROM inbound_commands WHERE message_id = ?', [cmdId])).verified);
+  const verified = JSON.parse((await db.get('SELECT verified FROM email_commands WHERE message_id = ?', [cmdId])).verified);
   assert.deepEqual([verified.spf, verified.dkim, verified.dmarc], ['pass', 'pass', 'pass']);
   const reply = await until(async () => (await imapList('sam@acme.example')).find((e) => e.inReplyTo === cmdId));
   assert.ok(reply, `no reply in Sam's inbox: ${JSON.stringify((await imapList('sam@acme.example')).map((e) => [e.subject, e.inReplyTo]))} want ${cmdId}`);

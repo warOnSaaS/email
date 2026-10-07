@@ -39,7 +39,7 @@ test('mailbox passwords are encrypted at rest and never shown', async () => {
   const { createEmailApp } = await import('../lib/app.mjs');
   const app = await createEmailApp({ db, env: { WOS_DEMO: '1', EMAIL_SECRET_KEY: 'k'.repeat(40) } });
   await app.mb.connectAccount({ kind: 'imap', address: 'riley@acme.example', imap: { host: 'imap.example', pass: 'hunter2-very-secret' }, smtp: { host: 'smtp.example', pass: 'hunter2-very-secret' }, test: false });
-  const row = await db.get('SELECT * FROM mail_accounts');
+  const row = await db.get('SELECT * FROM email_accounts');
   assert.ok(!JSON.stringify(row).includes('hunter2'), 'the password must not be readable in the database');
   assert.match(row.auth, /^v1\./);
   const listed = await app.callTool('email.list_accounts', {}, { actor: web(), person: { id: 'x', email: 'riley@acme.example', role: 'member' } });
