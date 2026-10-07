@@ -1,6 +1,7 @@
 /* wOS Email · the few pieces the ui-design kit does not have yet. Kit tokens (--ui-*) only, so every
    scheme and mode restyles these too. The kit itself (public/ui) is synced, never edited. */
 
+html{background:var(--ui-bg)}
 body.mail{font-size:14px}
 a{color:inherit}
 .mute{color:var(--ui-ink-3)}.small{font-size:12.5px}.nowrap{white-space:nowrap}
@@ -129,7 +130,7 @@ body.gate{display:grid;place-items:center;min-height:100svh;padding:16px;margin:
 }
 @media (max-width:700px){
   .grid2,.ui-fields.f2,.ui-fields.f3{grid-template-columns:1fr}
-  .thread-acts .ui-btn span:not(.ui-kbd),.thread-acts .ui-kbd,.reply-a .ui-kbd,.inbox-search .ui-kbd,.compose .ui-kbd{display:none}
+  .thread-acts .ui-btn:has(svg) span:not(.ui-kbd),.thread-acts .ui-kbd,.reply-a .ui-kbd,.inbox-search .ui-kbd,.compose .ui-kbd{display:none}
   .thread-bar{margin-left:-4px;margin-right:-4px}
   .msg{padding:var(--ui-s3) var(--ui-s4)}
   .msg-b,.msg-files{margin-left:0}

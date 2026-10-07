@@ -71,7 +71,7 @@ async function run(el, name, input) {
   if (!out.ok) return toast(out.error || 'That did not work');
   if (out.status === 'needs_approval') { toast('Waiting for a yes. See Approvals.'); return setTimeout(() => location.reload(), 900); }
   const after = el?.dataset.after ?? 'reload';
-  const first = String(out.text ?? 'Done').split('\n')[0];
+  const first = String(out.text ?? 'Done').split('\n')[0].replace(/\s*\((?:approval )?[a-z]{1,3}_[a-z2-9]{6,}\)/g, '');
   if (after === 'remove') {
     const row = el.closest('[data-row]');
     const undo = el.dataset.undo ? { tool: name, input: JSON.parse(el.dataset.undo) } : null;
