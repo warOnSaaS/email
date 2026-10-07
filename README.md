@@ -84,6 +84,12 @@ Keyboard (press `?` in the app): `j` `k` move, `Enter` open, `e` archive, `h` sn
 
 ## For the suite core
 
+This folder follows the suite's app contract ([CONTRACTS.md](https://github.com/warOnSaaS/suite), `packages/manifest` and `packages/tools`): `wos-app.json`, `tools.json` (with input and output schemas and a test per tool), `migrations/0001_init.sql` (portable SQL, every table starts with `email_`), `server.mjs` (`register(ctx)` with one handler per tool, `routes` for signed links under `/hooks/email/act/`, `start`, `stop`, `exportTeam`) and `dist/screens.mjs` (`mount(el, ctx)`, built from `screens/index.mjs` with `npm run build:screens`). `standalone.mjs` runs the same code on its own.
+
+Kit gaps (styles the app adds in `public/app/email.css` until the kit has them): inbox row hover actions, a mail message card, a sticky thread action bar, a reply box, sign-in check chips (SPF, DKIM, DMARC), the compose sheet on phones.
+
+Run by email as a library, for the core's own use:
+
 ```js
 import { createEmailApp } from '@waronsaas/email';
 
@@ -116,13 +122,15 @@ Events: `email.message.received`, `email.message.sent`, `email.command.received`
 | `FILES_DIR` | Where message bodies are kept (default `./data/files`). |
 | `SYNC_SECONDS`, `POLL_SECONDS` | How often mail and the command address are checked. |
 | `CRON_SECRET` | Lets a scheduler call `/api/cron` instead of the built-in timers. |
+| `SQLITE_FILE` | The SQLite file when there is no `DATABASE_URL`. |
 | `WOS_DEMO` | The demo: a made-up mailbox on the in-memory mail server. |
 
 ## Development
 
 ```
 npm install
-npm run dev          # the demo on http://localhost:3990
+npm run dev          # the demo on http://localhost:3990 (standalone.mjs --demo)
+npm run build:screens  # bundle the suite screen part into dist/screens.mjs
 npm test             # unit, run-by-email and parity tests
 npm run test:e2e     # against GreenMail and Postgres in Docker
 npm run shots        # screenshots at 1440 and 390, light and dark, into .shots/
