@@ -52,7 +52,7 @@ test('mailbox passwords are encrypted at rest and never shown', async () => {
 
 test('an agent sending outside the team waits for a person, and cannot approve itself', async () => {
   const { app, memory } = await demo();
-  const [t] = (await app.callTool('email.search', { q: 'lease' }, { actor: agent, person: sam })).result.threads;
+  const [t] = (await app.callTool('email.search', { q: 'landlord' }, { actor: agent, person: sam })).result.threads;
   const d = await app.callTool('email.draft', { thread_id: t.id, ai: true, instructions: 'ask for two years' }, { actor: agent, person: sam });
   assert.equal(d.result.written_by, 'agent');
   const before = memory.outside.length;
@@ -88,7 +88,7 @@ test('deleting from an agent needs a yes; an agent may deny', async () => {
 
 test('mailboxes are personal: a teammate cannot read Sam\'s mail', async () => {
   const { app } = await demo();
-  const [t] = (await app.callTool('email.search', { q: 'lease' }, { actor: web(), person: sam })).result.threads;
+  const [t] = (await app.callTool('email.search', { q: 'landlord' }, { actor: web(), person: sam })).result.threads;
   const jordan = { email: 'jordan@acme.example' };
   const r = await app.callTool('email.read_thread', { thread_id: t.id }, { actor: web('Jordan Lee'), person: jordan });
   assert.equal(r.ok, false);
