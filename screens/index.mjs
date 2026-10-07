@@ -12,6 +12,7 @@ export default {
   title: 'Email',
   mount(el, ctx) {
     const doc = el.ownerDocument;
+    el.classList.add('email-root');
     // Parts the kit does not have yet (listed for the kit lane in the README), scoped to this app.
     if (!doc.getElementById('wos-email-style')) doc.head.append(Object.assign(doc.createElement('style'), { id: 'wos-email-style', textContent: css }));
 
@@ -62,7 +63,7 @@ export default {
     const offs = LIVE.map((ev) => ctx.on?.(ev, () => { if (!el.querySelector('dialog[open]') && !el.contains(doc.activeElement)) draw(); }) ?? (() => {}));
     draw();
     return {
-      unmount() { alive = false; unwire?.(); for (const off of offs) off(); el.innerHTML = ''; },
+      unmount() { alive = false; unwire?.(); for (const off of offs) off(); el.innerHTML = ''; el.classList.remove('email-root'); },
       update(p) { if (p !== path) { path = p; draw(); } },
     };
   },

@@ -111,6 +111,7 @@ test('the screen part mounts, draws from tool results, and every control names a
 
 test('dist/screens.mjs is built from the current code', async () => {
   const { build } = await import('esbuild');
-  const out = await build({ entryPoints: ['screens/index.mjs'], bundle: true, format: 'esm', platform: 'browser', target: 'es2022', loader: { '.css': 'text' }, legalComments: 'none', write: false, banner: { js: '// wOS Email screen part, built from screens/index.mjs by scripts/build-screens.mjs. AGPL-3.0. Do not edit.' }, outfile: 'dist/screens.mjs' });
+  const { screensOptions } = await import('../scripts/build-screens.mjs');
+  const out = await build({ ...screensOptions, write: false });
   assert.equal(fs.readFileSync('dist/screens.mjs', 'utf8'), out.outputFiles[0].text, 'run npm run build:screens');
 });
