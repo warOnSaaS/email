@@ -1,0 +1,47 @@
+{
+  "name": "@waronsaas/email",
+  "version": "0.1.0",
+  "description": "wOS Email: a fast, keyboard-first email client with AI triage and drafts, and the inbound address that lets a team run wOS by email.",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/warOnSaaS/email"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "lib/index.mjs",
+  "exports": {
+    ".": "./lib/index.mjs",
+    "./run-by-email": "./lib/runbyemail/index.mjs",
+    "./tools": "./lib/tools.mjs",
+    "./tools.json": "./tools.json",
+    "./wos-app.json": "./wos-app.json"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs --demo",
+    "test": "node --test test/*.test.mjs",
+    "test:e2e": "node --test test/e2e/*.test.mjs",
+    "tools:json": "node scripts/tools-json.mjs",
+    "sync-kit": "node scripts/sync-kit.mjs",
+    "shots": "node scripts/shots.mjs",
+    "check:clean": "node scripts/check-clean.mjs",
+    "check": "node scripts/tools-json.mjs --check && node --test test/*.test.mjs && node scripts/check-clean.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "better-sqlite3": "^12.11.1",
+    "imapflow": "^2.2.7",
+    "mailauth": "^4.13.3",
+    "mailparser": "^3.9.36",
+    "nodemailer": "^10.0.16",
+    "pg": "^8.23.1",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
