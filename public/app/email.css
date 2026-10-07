@@ -17,6 +17,11 @@ code{font-family:var(--ui-mono);font-size:.92em}
 .demo-note{margin:0 0 var(--ui-s5);font-size:13.5px;align-items:center;line-height:1.5}
 .demo-note .ui-chip{flex:none}
 
+/* ---- inside the suite ---- */
+.mail-embedded .app-nav{display:flex;align-items:center;gap:var(--ui-s3);justify-content:space-between;padding:0 clamp(16px,3vw,28px);border-bottom:1px solid var(--ui-line)}
+.mail-embedded .app-nav .ui-tabs{border-bottom:0;flex:1;min-width:0}
+.mail-embedded .ui-page{width:min(980px,100%)}
+
 /* ---- inbox ---- */
 .inbox-search{margin:0 0 var(--ui-s3)}
 .inbox-search .ui-kbd{flex:none}

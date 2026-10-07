@@ -726,6 +726,12 @@
             "type": "string",
             "description": "The result in plain words"
           },
+          "apps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "commands": {
             "type": "array",
             "items": {

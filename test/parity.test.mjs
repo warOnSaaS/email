@@ -143,7 +143,7 @@ test('the browser makes no request that is not a tool call', async (t) => {
   await page.keyboard.press('j');
   await page.keyboard.press('e');
   await page.waitForTimeout(500);
-  await page.keyboard.press('s');
+  await Promise.all([page.waitForNavigation(), page.keyboard.press('s')]);
   await page.waitForLoadState('networkidle');
   // Every button in the open dialogs too (compose, keys, label), as the screen shows them.
   await page.keyboard.press('c');

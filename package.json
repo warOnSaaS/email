@@ -28,7 +28,8 @@
     "sync-kit": "node scripts/sync-kit.mjs",
     "shots": "node scripts/shots.mjs",
     "check:clean": "node scripts/check-clean.mjs",
-    "check": "node scripts/tools-json.mjs --check && node --test --test-force-exit test/*.test.mjs && node scripts/check-clean.mjs"
+    "check": "node scripts/tools-json.mjs --check && node scripts/build-screens.mjs && node --test --test-force-exit test/*.test.mjs && node scripts/check-clean.mjs",
+    "build:screens": "node scripts/build-screens.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
