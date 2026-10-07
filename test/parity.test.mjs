@@ -20,7 +20,7 @@ before(async () => {
   await new Promise((r) => srv.listen(0, r));
   base = `http://localhost:${srv.address().port}`;
 });
-after(() => srv?.close());
+after(() => { srv?.closeAllConnections(); srv?.close(); });
 
 async function screens() {
   const thread = (await app.mb.listThreads({ view: 'all' }))[0].id;
@@ -41,6 +41,13 @@ test('the catalogue: every tool has a name, description, schema, scope and confi
   for (const n of ['email.search', 'email.read_thread', 'email.draft', 'email.send', 'email.archive', 'email.label', 'email.snooze', 'email.triage', 'email.connect_account', 'email.set_rules']) assert.ok(NAMES.has(n), n);
   assert.equal(TOOLS.find((t) => t.name === 'email.send').confirm, 'human');
   assert.equal(TOOLS.find((t) => t.name === 'email.delete_thread').confirm, 'human');
+});
+
+test('every tool names a test, and that test calls it', async () => {
+  for (const t of TOOLS) {
+    assert.ok(t.test && fs.existsSync(t.test), `${t.name}: test file ${t.test}`);
+    assert.ok(fs.readFileSync(t.test, 'utf8').includes(`'${t.name}'`), `${t.test} never calls ${t.name}`);
+  }
 });
 
 test('tools.json and wos-app.json match the code', async () => {
@@ -97,7 +104,8 @@ test('every tool is reachable over MCP, and MCP and REST give the same answer', 
   assert.deepEqual(tools.map((t) => t.name).sort(), [...NAMES].sort());
   const viaMcp = await client.callTool({ name: 'email.search', arguments: { q: 'lease' } });
   const viaRest = await (await fetch(`${base}/api/tools/email.search`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer demo' }, body: JSON.stringify({ q: 'lease' }) })).json();
-  assert.equal(viaMcp.content[0].text, viaRest.text);
+  assert.deepEqual(viaMcp.structuredContent, viaRest.result);
+  assert.equal(viaMcp.content[0].text, JSON.stringify(viaRest.result));
   await client.close();
 });
 
@@ -107,19 +115,19 @@ test('an agent, using only MCP, does a day\'s email', async () => {
   const call = async (name, args = {}) => {
     const r = await client.callTool({ name, arguments: args });
     assert.ok(!r.isError, `${name}: ${r.content[0].text}`);
-    return r.content[0].text;
+    return r.structuredContent;
   };
   const inbox = await call('email.list_threads', { view: 'needs_you' });
-  const id = /^(t_[a-z2-9]+) .*Crown case/m.exec(inbox)[1];
-  assert.match(await call('email.read_thread', { thread_id: id }), /untrusted, from outside/);
+  const id = inbox.threads.find((t) => /Crown case/.test(t.subject)).id;
+  assert.match((await call('email.read_thread', { thread_id: id })).summary, /untrusted, from outside/);
   const draft = await call('email.draft', { thread_id: id, ai: true, instructions: 'use shade A2' });
-  const draftId = /\((d_[a-z2-9]+)\)/.exec(draft)[1];
-  assert.match(await call('email.send', { draft_id: draftId }), /^NEEDS APPROVAL/);
+  const sent = await call('email.send', { draft_id: draft.id });
+  assert.ok(sent.pending?.approval_id, 'an outside send waits for a person');
   await call('email.label', { thread_id: id, add: ['lab'] });
   await call('email.archive', { thread_id: id });
   await call('email.set_rules', { rules: [{ from: '*@smallbiz-weekly.example', triage: 'news' }] });
-  assert.match(await call('email.list_approvals'), /send "Re: Crown case/);
-  assert.match(await call('email.export'), /threads exported/);
+  assert.match((await call('email.list_approvals')).summary, /send "Re: Crown case/);
+  assert.match((await call('email.export')).summary, /threads exported/);
   await client.close();
 });
 

@@ -118,6 +118,7 @@ test('only a person in the app can turn off the outside-send check', async () =>
   assert.equal(r.ok, false);
   const ok = await app.callTool('email.update_settings', { send_outside_needs_yes: false }, { actor: web(), person: sam });
   assert.ok(ok.ok, ok.error);
+  assert.equal((await app.callTool('email.get_settings', {}, { actor: agent, person: sam })).result.send_outside_needs_yes, false);
 });
 
 test('export has every thread and no secrets', async () => {
@@ -148,4 +149,25 @@ test('snooze words', () => {
 
 test('demo members and addresses are fictional', () => {
   for (const m of DEMO.members) assert.match(m.email, /\.example$/);
+});
+
+test('the rest of the tools: drafts, members, rules, approvals, disconnecting', async () => {
+  const { app } = await demo();
+  const P = { actor: web(), person: sam };
+  const call = async (n, i) => { const o = await app.callTool(n, i, P); assert.ok(o.ok, `${n}: ${o.error}`); return o.result; };
+  const [t] = (await call('email.search', { q: 'landlord' })).threads;
+  assert.equal((await call('email.mark_read', { thread_id: t.id, read: false })).unread, true);
+  const d = await call('email.draft', { thread_id: t.id, body: 'Two years, please.' });
+  assert.ok((await call('email.list_drafts', {})).drafts.some((x) => x.id === d.id));
+  assert.equal((await call('email.discard_draft', { draft_id: d.id })).status, 'discarded');
+  const m = await call('email.add_member', { name: 'Avery Park', email: 'avery@acme.example' });
+  assert.ok((await call('email.list_members', {})).members.some((x) => x.email === 'avery@acme.example'));
+  await call('email.remove_member', { member_id: m.id });
+  assert.equal((await call('email.set_rules', { rules: [{ subject: 'invoice', triage: 'fyi' }] })).rules.length, 1);
+  const acct = (await call('email.list_accounts', {})).accounts.find((a) => a.purpose === 'mailbox');
+  const byAgent = await app.callTool('email.disconnect_account', { account_id: acct.id }, { actor: agent, person: sam });
+  assert.equal(byAgent.status, 'needs_approval');
+  assert.ok((await call('email.list_approvals', {})).approvals.some((a) => a.tool === 'email.disconnect_account'));
+  await call('email.disconnect_account', { account_id: acct.id });
+  assert.ok(!(await call('email.list_accounts', {})).accounts.some((a) => a.id === acct.id));
 });

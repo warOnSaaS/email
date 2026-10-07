@@ -49,7 +49,7 @@ test('the email link signs a teammate in once, and only after a button press', a
     const mcp = await fetch(`${base}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
     assert.equal(mcp.status, 401);
     assert.match(mcp.headers.get('www-authenticate'), /resource_metadata/);
-  } finally { srv.close(); }
+  } finally { srv.closeAllConnections(); srv.close(); }
 });
 
 test('a bearer token is an agent: it can draft but an outside send waits for a person', async () => {
@@ -59,9 +59,12 @@ test('a bearer token is an agent: it can draft but an outside send waits for a p
     const { access_token } = issueTokens(sam);
     const auth = { authorization: `Bearer ${access_token}`, 'content-type': 'application/json' };
     await app.mb.connectAccount({ kind: 'memory', address: 'sam@acme.example', owner_id: sam.id });
-    const r = await (await fetch(`${base}/api/tools/email.send`, { method: 'POST', headers: auth, body: JSON.stringify({ to: 'dana@birch-law.example', subject: 'Hi', body: 'Hello' }) })).json();
-    assert.equal(r.status, 'needs_approval');
-    const self = await (await fetch(`${base}/api/tools/email.decide_approval`, { method: 'POST', headers: auth, body: JSON.stringify({ approval_id: r.approval.id, decision: 'approve' }) })).json();
-    assert.equal(self.ok, false);
-  } finally { srv.close(); }
+    const sendRes = await fetch(`${base}/api/tools/email.send`, { method: 'POST', headers: auth, body: JSON.stringify({ to: 'dana@birch-law.example', subject: 'Hi', body: 'Hello' }) });
+    assert.equal(sendRes.status, 202);
+    const r = await sendRes.json();
+    assert.ok(r.pending?.approval_id, JSON.stringify(r));
+    const selfRes = await fetch(`${base}/api/tools/email.decide_approval`, { method: 'POST', headers: auth, body: JSON.stringify({ approval_id: r.pending.approval_id, decision: 'approve' }) });
+    assert.equal(selfRes.status, 403);
+    assert.equal((await selfRes.json()).error.code, 'scope');
+  } finally { srv.closeAllConnections(); srv.close(); }
 });

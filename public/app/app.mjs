@@ -9,7 +9,12 @@ async function call(name, input) {
     headers: { 'content-type': 'application/json', 'x-requested-with': 'wos-email' },
     body: JSON.stringify(input ?? {}),
   });
-  try { return await r.json(); } catch { return { ok: false, error: `The server answered ${r.status}` }; }
+  let body;
+  try { body = await r.json(); } catch { return { ok: false, error: `The server answered ${r.status}` }; }
+  // The suite's shape: { result }, { pending } (waits for a person's yes), or { error: { code, message } }.
+  if (body.error) return { ok: false, error: body.error.message ?? String(body.error) };
+  if (body.pending) return { ok: true, status: 'needs_approval', text: body.pending.message, pending: body.pending };
+  return { ok: true, status: 'done', result: body.result, text: body.result?.summary };
 }
 
 // ---------- toast with undo ----------

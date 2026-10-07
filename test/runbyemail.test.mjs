@@ -99,7 +99,7 @@ test('deleting by email needs a signed link; looking at the link does nothing, t
     assert.equal(again.status, 400);
     const forged = await fetch(`${base}/act/${link.slice(0, -3)}abc`);
     assert.equal(forged.status, 400);
-  } finally { srv.close(); }
+  } finally { srv.closeAllConnections(); srv.close(); }
 });
 
 test('an outside send asked by email also needs the link, not a reply', async () => {
@@ -193,4 +193,18 @@ test('a trusted receiving server\'s verdict is used, but only the topmost one', 
 test('client IPs from common Received headers', () => {
   assert.equal(ipOf('from mail.example.com (mail.example.com [203.0.113.5]) by mx.example.net'), '203.0.113.5');
   assert.equal(ipOf('from 192.168.65.1 (HELO [127.0.0.1]); Wed Oct 07 16:11:17 GMT 2026'), '192.168.65.1');
+});
+
+test('the run-by-email tools: poll, alerts, digest and the command log', async () => {
+  const { app, memory } = await demo();
+  const P = { actor: web(), person: sam };
+  const call = async (n, i) => { const o = await app.callTool(n, i, P); assert.ok(o.ok, `${n}: ${o.error}`); return o.result; };
+  await sendAs(memory, DEMO.me, { subject: 'inbox', text: 'inbox' });
+  assert.equal((await call('email.poll_commands', {})).handled, 1);
+  const log = (await call('email.list_commands', {})).commands;
+  assert.ok(log.some((c) => c.subject === 'inbox' && c.accepted));
+  assert.ok(log.some((c) => !c.accepted), 'the forged demo command shows as refused');
+  const al = await call('email.send_alert', { to: 'riley@acme.example', title: 'Forms are live', question: 'Announce them?', options: ['Yes', 'No'] });
+  assert.ok((await call('email.list_alerts', { status: 'open' })).alerts.some((a) => a.id === al.id));
+  assert.deepEqual((await call('email.send_digest', { to: 'riley@acme.example' })).sent, ['riley@acme.example']);
 });
