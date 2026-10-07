@@ -96,7 +96,9 @@ code{font-family:var(--ui-mono);font-size:.92em}
 .how dt{color:var(--ui-ink-2);font-weight:500;margin-top:10px}
 .how .ui-chip{margin-right:4px}
 .alert-f{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:var(--ui-s3)}
+.ui-card.flush:has(.tbl){overflow-x:auto}
 .tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl td.res{min-width:220px}
 .tbl th{text-align:left;font-weight:500;font-size:12px;color:var(--ui-ink-3);padding:10px 14px;border-bottom:1px solid var(--ui-line)}
 .tbl td{padding:10px 14px;border-bottom:1px solid var(--ui-line);vertical-align:top}
 .tbl tr:last-child td{border-bottom:0}
