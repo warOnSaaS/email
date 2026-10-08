@@ -274,11 +274,20 @@ test('the back channel: "sign out everywhere" ends every session at once, a dele
   const spaceBefore = await (await tool('email.list_threads', { view: 'needs_you' }, again.c)).json();
   assert.ok(spaceBefore.result.threads.length > 0, 'the space is still there');
 
-  // Deleted: the space goes too. Casey's space is a team space with Casey alone in it, so it goes.
+  // Deleted: the space goes too. Casey's space is a team space where Casey is the only signed-in account
+  // (the starter's made-up teammates do not keep it alive). Archive something first, then look for it.
+  const lease = spaceBefore.result.threads.find((t) => /Lease renewal/.test(t.subject));
+  assert.equal((await tool('email.archive', { thread_id: lease.id }, again.c)).status, 200);
   await new Promise((r) => setTimeout(r, 1100));
   const del = await fetch(`${base}/auth/waronsaas/backchannel`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ logout_token: logoutToken(people.casey.sub, { deleted: true }) }) });
   assert.deepEqual(await del.json(), { ok: true, deleted: true });
   assert.equal((await tool('email.list_members', {}, again.c)).status, 401);
+  // The same account id signing in again (a new account would have a new id; this stands in for "the space is gone")
+  // finds a fresh starter space: the archived conversation is back in Needs you.
+  await new Promise((r) => setTimeout(r, 1100));
+  const fresh = await signIn('/');
+  const after = await (await tool('email.list_threads', { view: 'needs_you' }, fresh.c)).json();
+  assert.ok(after.result.threads.some((t) => /Lease renewal/.test(t.subject)), 'the old space is gone; a fresh one was made');
 });
 
 test('with a database, a space is durable: an archive survives a server restart, the signed-out demo never reaches it', async () => {
