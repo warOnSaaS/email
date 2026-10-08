@@ -229,6 +229,58 @@ test('an AI app connects through the account as a connection, and its token work
   assert.equal(rest.status, 200);
 });
 
+// A back-channel logout token from the account, as its server mints it.
+const logoutToken = (sub, { deleted = false } = {}) => {
+  const now = Math.floor(Date.now() / 1000);
+  const events = { 'http://schemas.openid.net/event/backchannel-logout': {} };
+  if (deleted) events['https://waronsaas.com/events/account-deleted'] = {};
+  return idToken({ iss: issuer, aud: CLIENT.id, sub, jti: crypto.randomUUID(), events, iat: now, exp: now + 120 });
+};
+
+test('the back channel: "sign out everywhere" ends every session at once, a deletion removes the account\'s space', async () => {
+  signInAs = 'casey';
+  const { c } = await signIn('/');
+  await new Promise((r) => setTimeout(r, 1100)); // the sign-out must come after the token's issue second
+  assert.equal((await tool('email.list_members', {}, c)).status, 200);
+  // An AI app's token for the same account.
+  const reg = await (await fetch(`${base}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'Codex', redirect_uris: ['http://localhost:9/cb'] }) })).json();
+  const verifier = b64u(crypto.randomBytes(32));
+  const c2 = jar();
+  const auth = await get(`/oauth/authorize?client_id=${encodeURIComponent(reg.client_id)}&redirect_uri=${encodeURIComponent('http://localhost:9/cb')}&response_type=code&state=s&code_challenge=${b64u(crypto.createHash('sha256').update(verifier).digest())}&code_challenge_method=S256`, c2);
+  const cb = await get((await get(auth.headers.get('location'), c2)).headers.get('location'), c2);
+  const tok = await (await fetch(`${base}/oauth/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', code: new URL(cb.headers.get('location')).searchParams.get('code'), redirect_uri: 'http://localhost:9/cb', client_id: reg.client_id, code_verifier: verifier }) })).json();
+  assert.equal((await tool('email.list_members', {}, null, { authorization: `Bearer ${tok.access_token}` })).status, 200);
+  await new Promise((r) => setTimeout(r, 1100));
+
+  // A bad token changes nothing and still gets 200.
+  const bad = await fetch(`${base}/auth/waronsaas/backchannel`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ logout_token: 'nope' }) });
+  assert.equal(bad.status, 200);
+  assert.equal((await bad.json()).ok, false);
+  assert.equal((await tool('email.list_members', {}, c)).status, 200);
+
+  // Sign out everywhere: the cookie, the AI app's token and its refresh token all die at once.
+  const out = await fetch(`${base}/auth/waronsaas/backchannel`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ logout_token: logoutToken(people.casey.sub) }) });
+  assert.equal(out.status, 200);
+  assert.deepEqual(await out.json(), { ok: true, deleted: false });
+  assert.equal((await tool('email.list_members', {}, c)).status, 401);
+  assert.equal((await tool('email.list_members', {}, null, { authorization: `Bearer ${tok.access_token}` })).status, 401);
+  const refreshed = await (await fetch(`${base}/oauth/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: tok.refresh_token, client_id: reg.client_id }) })).json();
+  assert.equal(refreshed.error, 'invalid_grant');
+  assert.match(await (await get('/', c)).text(), /data-signed-in="false"/, 'the page still opens, signed out');
+  // Signing in again works: a new token is newer than the sign-out.
+  await new Promise((r) => setTimeout(r, 1100));
+  const again = await signIn('/');
+  assert.equal((await tool('email.list_members', {}, again.c)).status, 200);
+  const spaceBefore = await (await tool('email.list_threads', { view: 'needs_you' }, again.c)).json();
+  assert.ok(spaceBefore.result.threads.length > 0, 'the space is still there');
+
+  // Deleted: the space goes too. Casey's space is a team space with Casey alone in it, so it goes.
+  await new Promise((r) => setTimeout(r, 1100));
+  const del = await fetch(`${base}/auth/waronsaas/backchannel`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ logout_token: logoutToken(people.casey.sub, { deleted: true }) }) });
+  assert.deepEqual(await del.json(), { ok: true, deleted: true });
+  assert.equal((await tool('email.list_members', {}, again.c)).status, 401);
+});
+
 test('with a database, a space is durable: an archive survives a server restart, the signed-out demo never reaches it', async () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wos-email-space-')), 'spaces.sqlite');
   const env = { AUTH_PROVIDER: 'waronsaas', WOS_ACCOUNT_CLIENT_ID: CLIENT.id, WOS_ACCOUNT_CLIENT_SECRET: CLIENT.secret, WOS_ACCOUNT_URL: issuer, WOS_DEMO: '1', SQLITE_FILE: file };
@@ -280,6 +332,13 @@ test('with a database, a space is durable: an archive survives a server restart,
     await space.mb.sync();
     const again = await space.callTool('email.search', { q: 'restart' }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
     assert.equal(again.result.threads.length, 1, 'new mail after a restart is picked up');
+    // The account is deleted: its space leaves the database.
+    const gone = await getApp.removeAccount('acc_riley');
+    assert.deepEqual(gone, ['acct:acc_riley']);
+    assert.equal((await space.db.get('SELECT COUNT(*) AS n FROM email_threads WHERE team_id = ?', ['acct:acc_riley'])).n, 0);
+    assert.equal((await space.db.get('SELECT COUNT(*) AS n FROM email_blobs')).n, 0, 'its message bodies go too');
+    await getApp.signouts.mark('acc_riley', { deleted: true });
+    assert.equal((await space.db.get('SELECT deleted FROM email_signouts WHERE sub = ?', ['acc_riley'])).deleted, 1);
   });
   if (hadUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = hadUrl;
 });

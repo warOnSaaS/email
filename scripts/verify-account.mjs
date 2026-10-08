@@ -112,9 +112,13 @@ await page2.goto(base + '/inbox/archived', { waitUntil: 'networkidle' });
 const archivedHrefs = await page2.locator('[data-row]').evaluateAll((els) => els.map((e) => e.getAttribute('data-href')));
 note(archivedHrefs.includes(archivedHref), `durable: the archived conversation is in Archived${archivedSubject ? ` (${archivedSubject})` : ''}`);
 await shot(page2, 'in-archived-desk');
-// Clean up: delete the test account.
+// Delete the account at account.waronsaas.com: the back channel must end the Email session at once.
 const del = await ctx2.request.post(ACCOUNT + '/api/tools/account.delete', { headers: { 'x-wos-call': '1', 'content-type': 'application/json' }, data: { confirm: 'delete' } });
 note(del.ok(), `account: test account deleted (${del.status()})`);
+const afterDel = await ctx2.request.post(base + '/api/tools/email.list_members', { headers: { 'x-requested-with': 'wos-email', 'content-type': 'application/json' }, data: {} });
+note(afterDel.status() === 401, `back channel: the Email cookie is refused at once after the deletion (${afterDel.status()})`);
+await page2.goto(base + '/', { waitUntil: 'networkidle' });
+note(await page2.locator('script[src$="/prompt.js"][data-signed-in="false"]').count() === 1, 'back channel: the page opens signed out');
 await ctx2.close();
 await browser.close();
 console.log(problems.length ? `\n${problems.length} problem(s):\n${problems.join('\n')}` : '\nall good');
