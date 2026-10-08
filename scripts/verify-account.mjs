@@ -2,7 +2,8 @@
 //   node scripts/verify-account.mjs [https://mail.waronsaas.com]
 // Signed out: the main pages render at 1440 and 390 and a press on an action shows the prompt.
 // Signed in: a throwaway inbox signs in at the account (email link), the app then signs in silently and
-// an action works. Screenshots land in .shots/account-*.png. The test account is deleted at the end.
+// an action works. Then a fresh browser signs in again and the change must still be there (the space is
+// durable). Screenshots land in .shots/account-*.png. The test account is deleted at the end.
 // Never emails a real person: the inbox is a mail.tm throwaway.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,32 +48,43 @@ for (const [tag, width, height, scale] of sizes) {
 const { Mailbox } = await import(path.join(os.homedir(), 'wos-account', 'scripts', 'mailbox.mjs'));
 const box = await Mailbox.create();
 console.log(`throwaway inbox ${box.address}`);
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
-const page = await ctx.newPage();
+const seenLinks = new Set();
+// Signs in at the account with the throwaway inbox (a fresh link each time), then opens the app, which
+// must sign in silently. Returns the page.
+async function accountSignIn(ctx, label) {
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(e.message));
+  // Ask for the link from inside the browser context, so the account's cookies land in this browser.
+  await page.goto(ACCOUNT + '/', { waitUntil: 'networkidle' });
+  const asked = await ctx.request.post(ACCOUNT + '/auth/email', { form: { email: box.address, next: '/' } });
+  note(asked.status() === 200, `${label}: asked for a sign-in link (${asked.status()})`);
+  let link = null;
+  for (let i = 0; i < 40 && !link; i++) {
+    const mail = await box.waitFor(/Sign in/i);
+    for (const m of mail.text.matchAll(/(https:\/\/\S+\/auth\/email\/verify\?t=[^\s"<]+)/g)) if (!seenLinks.has(m[1])) link = m[1];
+    if (!link) await new Promise((r) => setTimeout(r, 3000));
+  }
+  note(!!link, `${label}: a new sign-in link arrived`);
+  seenLinks.add(link);
+  await page.goto(link, { waitUntil: 'networkidle' });
+  await page.locator('form button').first().click();
+  await page.waitForLoadState('networkidle');
+  note(/account\.waronsaas\.com/.test(page.url()), `${label}: signed in at the account`);
+  await page.goto(base + '/');
+  await page.waitForFunction(() => document.querySelector('script[src$="/prompt.js"]')?.dataset.signedIn === 'true', null, { timeout: 20000 }).catch(() => {});
+  await page.waitForLoadState('networkidle');
+  note(await page.locator('script[src$="/prompt.js"][data-signed-in="true"]').count() === 1, `${label}: the app signed in silently`);
+  return page;
+}
 const errors = [];
-page.on('pageerror', (e) => errors.push(e.message));
-// Ask for the link from inside the browser context, so the account's cookies land in this browser.
-await page.goto(ACCOUNT + '/', { waitUntil: 'networkidle' });
-const asked = await ctx.request.post(ACCOUNT + '/auth/email', { form: { email: box.address, next: '/' } });
-note(asked.status() === 200, `account: asked for a sign-in link (${asked.status()})`);
-const mail = await box.waitFor(/Sign in/i);
-const link = /(https:\/\/\S+\/auth\/email\/verify\?t=[^\s"<]+)/.exec(mail.text)?.[1];
-note(!!link, 'account: the sign-in link arrived');
-await page.goto(link, { waitUntil: 'networkidle' });
-await page.locator('form button').first().click();
-await page.waitForLoadState('networkidle');
-note(/account\.waronsaas\.com/.test(page.url()), `account: signed in, now at ${page.url()}`);
-
-// The app: silent sign-in, no clicks.
-await page.goto(base + '/');
-await page.waitForFunction(() => document.querySelector('script[src$="/prompt.js"]')?.dataset.signedIn === 'true', null, { timeout: 20000 }).catch(() => {});
-await page.waitForLoadState('networkidle');
-const signedIn = await page.locator('script[src$="/prompt.js"][data-signed-in="true"]').count() === 1;
-note(signedIn, 'app: signed in silently after the account sign-in');
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
+const page = await accountSignIn(ctx, 'first browser');
 note(await page.locator('.ui-side-me a[href="/logout"]').count() === 1, 'app: the side rail shows Sign out');
 await shot(page, 'in-inbox-desk');
 // An action works: archive the first conversation from the screen.
 const before = await page.locator('[data-row]').count();
+const archivedSubject = (await page.locator('[data-row] .subject, [data-row] b').first().textContent().catch(() => ''))?.trim();
+const archivedHref = await page.locator('[data-row]').first().getAttribute('data-href');
 await page.locator('[data-row] button[data-tool="email.archive"]').first().click({ force: true });
 await page.waitForTimeout(1200);
 const after = await page.locator('[data-row]').count();
@@ -88,10 +100,22 @@ await page.goto(base + '/settings', { waitUntil: 'networkidle' });
 await shot(page, 'in-settings-phone');
 note(errors.length === 0, `signed in: no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
 
-// Clean up: delete the test account.
-const del = await ctx.request.post(ACCOUNT + '/api/tools/account.delete', { headers: { 'x-wos-call': '1', 'content-type': 'application/json' }, data: { confirm: 'delete' } });
-note(del.ok(), `account: test account deleted (${del.status()})`);
 await ctx.close();
+
+// A fresh browser, the same account: the archive must still be there.
+const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
+const page2 = await accountSignIn(ctx2, 'second browser');
+const rows2 = await page2.locator('[data-row]').count();
+const hrefs2 = await page2.locator('[data-row]').evaluateAll((els) => els.map((e) => e.getAttribute('data-href')));
+note(rows2 === after && !hrefs2.includes(archivedHref), `durable: the archive persisted across sign-ins (${rows2} rows, archived one absent)`);
+await page2.goto(base + '/inbox/archived', { waitUntil: 'networkidle' });
+const archivedHrefs = await page2.locator('[data-row]').evaluateAll((els) => els.map((e) => e.getAttribute('data-href')));
+note(archivedHrefs.includes(archivedHref), `durable: the archived conversation is in Archived${archivedSubject ? ` (${archivedSubject})` : ''}`);
+await shot(page2, 'in-archived-desk');
+// Clean up: delete the test account.
+const del = await ctx2.request.post(ACCOUNT + '/api/tools/account.delete', { headers: { 'x-wos-call': '1', 'content-type': 'application/json' }, data: { confirm: 'delete' } });
+note(del.ok(), `account: test account deleted (${del.status()})`);
+await ctx2.close();
 await browser.close();
 console.log(problems.length ? `\n${problems.length} problem(s):\n${problems.join('\n')}` : '\nall good');
 console.log(`screenshots in ${out}/account-*.png`);

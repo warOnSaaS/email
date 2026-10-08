@@ -5,6 +5,9 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { makeHandler } from '../lib/http.mjs';
@@ -224,4 +227,53 @@ test('an AI app connects through the account as a connection, and its token work
   assert.ok(again.access_token);
   const rest = await tool('email.list_members', {}, null, { authorization: `Bearer ${again.access_token}` });
   assert.equal(rest.status, 200);
+});
+
+test('with a database, a space is durable: an archive survives a server restart, the signed-out demo never reaches it', async () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wos-email-space-')), 'spaces.sqlite');
+  const env = { AUTH_PROVIDER: 'waronsaas', WOS_ACCOUNT_CLIENT_ID: CLIENT.id, WOS_ACCOUNT_CLIENT_SECRET: CLIENT.secret, WOS_ACCOUNT_URL: issuer, WOS_DEMO: '1', SQLITE_FILE: file };
+  const claims = { sub: 'acc_riley', sid: 'ses_r1', sp: 'acct:acc_riley', n: 'Riley Chen', e: 'riley@elsewhere.example', ev: true, r: 'owner' };
+  const { personForClaims } = await import('../lib/account.mjs');
+  const run = async (fn) => {
+    const getApp = makeGetApp({ env, demo: true });
+    assert.equal(getApp.memoryOnly, false);
+    const out = await fn(getApp);
+    const a = await getApp('acct:acc_riley');
+    await a.db.close();
+    return out;
+  };
+  const archivedId = await run(async (getApp) => {
+    const demo = await getApp(null);
+    assert.equal(demo.db.kind, 'sqlite');
+    assert.notEqual(demo.db, (await getApp('acct:acc_riley')).db, 'the signed-out demo has storage of its own, in memory');
+    const space = await getApp('acct:acc_riley');
+    const me = await personForClaims(space.mb, claims, null);
+    assert.equal(me.role, 'owner');
+    const list = await space.callTool('email.list_threads', { view: 'needs_you' }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
+    const lease = list.result.threads.find((t) => /Lease renewal/.test(t.subject));
+    assert.ok(lease, 'the space starts with the starter mailbox');
+    const read = await space.callTool('email.read_thread', { thread_id: lease.id }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
+    assert.match(read.result.messages[0].body?.text ?? read.result.messages[0].text ?? '', /landlord/, 'bodies live in the database too');
+    const arch = await space.callTool('email.archive', { thread_id: lease.id }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
+    assert.ok(arch.ok, arch.error);
+    return lease.id;
+  });
+  // A new server: a fresh getApp over the same file.
+  await run(async (getApp) => {
+    const space = await getApp('acct:acc_riley');
+    const members = await space.mb.members();
+    assert.equal(members.filter((m) => m.sub === 'acc_riley').length, 1, 'the member is still there, not made twice');
+    const me = await personForClaims(space.mb, claims, null);
+    const list = await space.callTool('email.list_threads', { view: 'needs_you' }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
+    assert.ok(!list.result.threads.some((t) => t.id === archivedId), 'the archive persisted');
+    const archived = await space.callTool('email.list_threads', { view: 'archived' }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
+    assert.ok(archived.result.threads.some((t) => t.id === archivedId));
+    const demoRows = await space.db.get("SELECT COUNT(*) AS n FROM email_members WHERE email = 'sam@acme.example'");
+    assert.equal(Number(demoRows.n), 1, 'only the space\'s own starter copy is in the database, not the signed-out demo');
+    // Mail delivered after the restart still arrives: ids on the fresh fake server are above the stored ones.
+    await space.mb.memory.transport('jordan@acme.example').send({ from: { name: 'Jordan Lee', address: 'jordan@acme.example' }, to: 'sam@acme.example', subject: 'After the restart', text: 'Still here?' });
+    await space.mb.sync();
+    const again = await space.callTool('email.search', { q: 'restart' }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
+    assert.equal(again.result.threads.length, 1, 'new mail after a restart is picked up');
+  });
 });
