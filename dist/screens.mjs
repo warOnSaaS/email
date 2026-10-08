@@ -123,10 +123,11 @@ function sideMe(ctx) {
   return `<div class="ui-side-me">${avatar({ name: me.name, address: me.email })}<span>${esc(me.name)}<small>${ctx.demo && !ctx.hosted ? "Demo, no sign-in" : '<a href="/logout">Sign out</a>'}</small></span></div>`;
 }
 function demoNote(ctx) {
-  if (!ctx.demo) return "";
+  if (!ctx.demo && !(ctx.hosted && ctx.starter)) return "";
   const tip = 'Try writing to <b>ops@acme.example</b> with "search invoice", or press <span class="ui-kbd">?</span> for shortcuts.';
-  if (ctx.hosted && !ctx.signedIn) return `<div class="ui-notice is-quiet demo-note"><span class="ui-chip is-soft">Demo</span><span>Acme Dental's made-up mailbox, open to look at. Sign in with a free warOnSaaS account to archive, draft, send, connect a mailbox or let your AI act for you. ${tip}</span></div>`;
-  if (ctx.hosted) return `<div class="ui-notice is-quiet demo-note"><span class="ui-chip is-soft">Demo</span><span>Your own copy of the Acme Dental mailbox, on a mail server that lives in memory. Nothing reaches a real inbox, and it starts fresh now and then. ${tip}</span></div>`;
+  if (ctx.hosted && !ctx.signedIn) return `<div class="ui-notice is-quiet demo-note"><span class="ui-chip is-soft">Demo</span><span>Acme Dental's made-up mailbox, open to look at. <a href="/auth/waronsaas?next=${encodeURIComponent(ctx.path ?? "/")}">Sign in</a> with a free warOnSaaS account to archive, draft, send, connect a mailbox or let your AI act for you. ${tip}</span></div>`;
+  if (ctx.hosted && ctx.memoryOnly) return `<div class="ui-notice is-quiet demo-note"><span class="ui-chip is-soft">Demo</span><span>Your own copy of the Acme Dental mailbox, on a mail server that lives in memory. Nothing reaches a real inbox, and it starts fresh now and then. ${tip}</span></div>`;
+  if (ctx.hosted) return `<div class="ui-notice is-quiet demo-note"><span class="ui-chip is-soft">Starter</span><span>Your own copy of the Acme Dental mailbox, kept for you to try things on. Nothing reaches a real inbox. Connect your own mailbox in <a href="/settings">Settings</a>. ${tip}</span></div>`;
   return `<div class="ui-notice is-quiet demo-note"><span class="ui-chip is-soft">Demo</span><span>A made-up mailbox for Acme Dental on a mail server that lives in memory. Nothing reaches a real inbox. ${tip}</span></div>`;
 }
 function embedded(ctx, { current, body }) {
@@ -178,7 +179,7 @@ function renderInbox(ctx, { view, threads, q = "", account }) {
   const empty = view === "needs_you" ? `<div class="zero">${icon("spark", 22)}<h2>Nothing needs you.</h2><p>Everything waiting on you is handled. FYI and newsletters are one key away: <span class="ui-kbd">g</span> <span class="ui-kbd">f</span>.</p></div>` : `<div class="zero"><h2>${q ? `Nothing matches "${esc(q)}".` : "Nothing here."}</h2></div>`;
   const body = `
 <div class="ui-ph"><div><h1>${esc(view === "search" ? `Search: ${q}` : VIEW_TITLE[view])}</h1><p>${esc(view === "search" ? `${threads.length} found, archived mail included.` : VIEW_SUB[view])}${account ? ` <span class="mute">${esc(account)}</span>` : ""}</p></div>
-<div class="ph-a"><button type="button" class="ui-btn is-quiet is-sm" data-tool="email.sync" data-input="{}" data-after="reload" title="Check for new mail (s)">${icon("sync", 15)}<span>Check mail</span></button></div></div>
+<div class="ph-a"><button type="button" class="ui-btn is-quiet is-sm" data-tool="email.sync" data-input="{}" data-after="reload" data-action-label="check mail" title="Check for new mail (s)">${icon("sync", 15)}<span>Check mail</span></button></div></div>
 <form class="ui-search inbox-search" role="search" data-tool="email.search" data-nav="/search">${icon("search", 15)}<input type="search" name="q" value="${esc(q)}" placeholder="Search all mail" aria-label="Search all mail" data-search><span class="ui-kbd">/</span></form>
 ${["needs_you", "fyi", "news", "all"].includes(view) ? `<nav class="ui-tabs split" aria-label="Split inbox">${[["needs_you", "/", "1"], ["fyi", "/inbox/fyi", "2"], ["news", "/inbox/news", "3"], ["all", "/inbox/all", ""]].map(([k, href]) => `<a href="${href}"${k === view ? ' aria-current="page"' : ""}>${esc(VIEW_TITLE[k])}${ctx.counts?.[k] ? `<span class="ui-badge${k === "needs_you" ? "" : " is-quiet"}">${ctx.counts[k]}</span>` : ""}</a>`).join("")}</nav>` : ""}
 <div class="ui-card flush"><ul class="ui-inbox" data-list>${rows || `<li class="empty-li">${empty}</li>`}</ul></div>
@@ -345,7 +346,7 @@ async function renderScreen(fullPath, call, ctx, { back = "/" } = {}) {
   const first = await call("email.list_threads", { view: "needs_you", limit: 1 });
   const approvals = (await call("email.list_approvals", {})).approvals;
   const drafts = (await call("email.list_drafts", {})).drafts;
-  const c = { ...ctx, outsideNeedsYes: settings.send_outside_needs_yes, counts: { ...first.counts ?? {}, approvals: approvals.length, drafts: drafts.length } };
+  const c = { ...ctx, outsideNeedsYes: settings.send_outside_needs_yes, starter: accounts.some((a2) => a2.kind === "memory"), counts: { ...first.counts ?? {}, approvals: approvals.length, drafts: drafts.length } };
   const mine = accounts.find((x) => x.purpose === "mailbox");
   if (p === "/" || a === "inbox" && b) {
     const view = p === "/" ? "needs_you" : b;
