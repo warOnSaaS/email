@@ -242,10 +242,15 @@ test('with a database, a space is durable: an archive survives a server restart,
     await a.db.close();
     return out;
   };
+  // The process may carry a DATABASE_URL (it does on Vercel): the signed-out demo must still stay in memory.
+  const hadUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = 'postgres://nobody:nothing@127.0.0.1:1/never';
   const archivedId = await run(async (getApp) => {
     const demo = await getApp(null);
     assert.equal(demo.db.kind, 'sqlite');
     assert.notEqual(demo.db, (await getApp('acct:acc_riley')).db, 'the signed-out demo has storage of its own, in memory');
+    assert.equal((await demo.db.get("SELECT COUNT(*) AS n FROM email_members WHERE email = 'sam@acme.example'")).n, 1);
+    assert.equal(fs.existsSync(file) && (await (await getApp('acct:acc_riley')).db.get("SELECT COUNT(*) AS n FROM email_members WHERE email = 'sam@acme.example'")).n, 1, 'the space has its own starter copy; the demo did not land in the file');
     const space = await getApp('acct:acc_riley');
     const me = await personForClaims(space.mb, claims, null);
     assert.equal(me.role, 'owner');
@@ -276,4 +281,5 @@ test('with a database, a space is durable: an archive survives a server restart,
     const again = await space.callTool('email.search', { q: 'restart' }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
     assert.equal(again.result.threads.length, 1, 'new mail after a restart is picked up');
   });
+  if (hadUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = hadUrl;
 });
