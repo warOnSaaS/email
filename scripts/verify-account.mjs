@@ -69,6 +69,14 @@ async function accountSignIn(ctx, label) {
   await page.goto(link, { waitUntil: 'networkidle' });
   await page.locator('form button').first().click();
   await page.waitForLoadState('networkidle');
+  // A new account is asked its name once before it goes on.
+  const nameBox = page.locator('input[name="name"][autofocus]');
+  if (await nameBox.count()) {
+    await nameBox.fill('Test Person');
+    await Promise.all([page.waitForLoadState('networkidle'), nameBox.press('Enter')]);
+    await page.waitForTimeout(500);
+    note(true, `${label}: gave the account a name`);
+  }
   note(/account\.waronsaas\.com/.test(page.url()), `${label}: signed in at the account`);
   await page.goto(base + '/');
   await page.waitForFunction(() => document.querySelector('script[src$="/prompt.js"]')?.dataset.signedIn === 'true', null, { timeout: 20000 }).catch(() => {});

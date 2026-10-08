@@ -342,12 +342,24 @@ test('with a database, a space is durable: an archive survives a server restart,
     const again = await space.callTool('email.search', { q: 'restart' }, { actor: { kind: 'person', channel: 'web', name: me.name }, person: me });
     assert.equal(again.result.threads.length, 1, 'new mail after a restart is picked up');
     // The account is deleted: its space leaves the database.
+    const { issueTokens } = await import('../lib/auth.mjs');
+    const cookie = `wos_email_session=${encodeURIComponent(issueTokens(me, claims).access_token)}`;
+    await new Promise((r) => setTimeout(r, 1100));
     const gone = await getApp.removeAccount('acc_riley');
     assert.deepEqual(gone, ['acct:acc_riley']);
     assert.equal((await space.db.get('SELECT COUNT(*) AS n FROM email_threads WHERE team_id = ?', ['acct:acc_riley'])).n, 0);
     assert.equal((await space.db.get('SELECT COUNT(*) AS n FROM email_blobs')).n, 0, 'its message bodies go too');
     await getApp.signouts.mark('acc_riley', { deleted: true });
     assert.equal((await space.db.get('SELECT deleted FROM email_signouts WHERE sub = ?', ['acc_riley'])).deleted, 1);
+    // A request still carrying the dead cookie must not bring the space back.
+    const srv2 = http.createServer(makeHandler(getApp, { demo: true, env, account }));
+    await new Promise((r) => srv2.listen(0, r));
+    try {
+      const r = await fetch(`http://localhost:${srv2.address().port}/settings`, { headers: { cookie } });
+      assert.equal(r.status, 200);
+      assert.match(await r.text(), /data-signed-in="false"/);
+      assert.equal((await space.db.get('SELECT COUNT(*) AS n FROM email_members WHERE team_id = ?', ['acct:acc_riley'])).n, 0, 'the removed space stays removed');
+    } finally { srv2.closeAllConnections(); srv2.close(); }
   });
   if (hadUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = hadUrl;
 });
