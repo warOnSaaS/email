@@ -6,12 +6,14 @@
 // digest checked every minute.
 import http from 'node:http';
 import { makeHandler } from './lib/http.mjs';
-import { createEmailApp } from './lib/app.mjs';
-import { seedDemo } from './lib/demo.mjs';
+import { makeGetApp } from './lib/hosted.mjs';
 
 export async function start({ demo = process.argv.includes('--demo') || !!process.env.WOS_DEMO, port = Number(process.env.PORT || 3990), timers = true } = {}) {
-  const app = demo ? (await seedDemo()).app : await createEmailApp();
-  const srv = http.createServer(makeHandler(async () => app, { demo }));
+  // With AUTH_PROVIDER=waronsaas each signed-in account works in a space of its own (lib/hosted.mjs); the
+  // timers below run on the shared app only, which is the whole install for GitHub or email-link sign-in.
+  const getApp = makeGetApp({ env: process.env, demo });
+  const app = await getApp(null);
+  const srv = http.createServer(makeHandler(getApp, { demo }));
   await new Promise((r) => srv.listen(port, r));
   const every = (s, fn) => { const t = setInterval(() => fn().catch((e) => console.error(e.message)), s * 1000); t.unref(); return t; };
   if (timers) {

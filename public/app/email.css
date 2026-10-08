@@ -9,6 +9,9 @@ code{font-family:var(--ui-mono);font-size:.92em}
 .mark{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:var(--ui-radius-sm);background:var(--ui-accent);color:var(--ui-on-accent)}
 .compose-btn{margin:0 4px var(--ui-s4);justify-content:flex-start;gap:10px}
 .compose-btn .ui-kbd{margin-left:auto}
+.ui-side-me.is-out{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ui-side-me.is-out .ui-side-me-text{display:flex;flex-direction:column;min-width:0;font-size:13px}
+.ui-side-me.is-out small{color:var(--ui-ink-3);font-size:11.5px}
 .selfhost{display:block;margin:10px 10px 0;font-size:12px;color:var(--ui-ink-3);text-decoration:none}
 .selfhost:hover{color:var(--ui-ink)}
 .ui-page.is-wide{width:100%;max-width:1400px}

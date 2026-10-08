@@ -41,7 +41,7 @@ export function wire(root, io) {
     busy?.classList?.add('is-busy');
     const out = await io.call(name, input);
     busy?.classList?.remove('is-busy');
-    if (!out.ok) return io.toast(out.error || 'That did not work');
+    if (!out.ok) return out.signIn ? undefined : io.toast(out.error || 'That did not work');
     if (out.status === 'needs_approval') return io.reload('Waiting for a yes. See Approvals.');
     const after = el?.dataset?.after ?? 'reload';
     const first = String(out.text ?? 'Done').split('\n')[0].replace(/\s*\((?:approval )?[a-z]{1,3}_[a-z2-9]{6,}\)/g, '');
@@ -219,6 +219,8 @@ export async function callTool(name, input, headers = { 'x-requested-with': 'wos
   });
   let body;
   try { body = await r.json(); } catch { return { ok: false, error: `The server answered ${r.status}` }; }
+  // Signed out on the hosted copy: offer sign-in instead of an error.
+  if (r.status === 401 && body.error?.code === 'sign_in' && window.wosAccount?.prompt) { window.wosAccount.prompt(); return { ok: false, error: body.error.message, signIn: true }; }
   if (body.error) return { ok: false, error: body.error.message ?? String(body.error) };
   if (body.pending) return { ok: true, status: 'needs_approval', text: body.pending.message, pending: body.pending };
   return { ok: true, status: 'done', result: body.result, text: body.result?.summary };

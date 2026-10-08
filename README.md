@@ -117,6 +117,8 @@ Events: `email.message.received`, `email.message.sent`, `email.command.received`
 | `PUBLIC_URL` | The app's address, used in signed links. |
 | `TEAM_MEMBERS` | First members on a fresh install: `Name <email> @github owner, ...` |
 | `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | GitHub sign-in (optional). |
+| `AUTH_PROVIDER` | `github` or `local` (the email link) on your own install, as before. `waronsaas` on the hosted copy: every page is open to look at (the demo mailbox), any action needs a free warOnSaaS account, and each account works in a space of its own or its team's. |
+| `WOS_ACCOUNT_CLIENT_ID`, `WOS_ACCOUNT_CLIENT_SECRET`, `WOS_ACCOUNT_URL` | The warOnSaaS account client for `AUTH_PROVIDER=waronsaas`. `npm run sync-account` refreshes `lib/account-client.mjs` from the account repo. |
 | `SMTP_URL`, `MAIL_FROM` | Mail the app sends itself, such as sign-in links. Falls back to the command mailbox. |
 | `MODEL_BASE_URL`, `MODEL_API_KEY`, `MODEL_NAME` | Any OpenAI-compatible model for sorting and drafts. |
 | `FILES_DIR` | Where message bodies are kept (default `./data/files`). |

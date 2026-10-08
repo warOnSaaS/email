@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { demo, web, agent, sam, DEMO } from './helpers.mjs';
 import { openDb, migrate } from '../lib/db.mjs';
@@ -137,7 +138,8 @@ test('outside mail reaches the model only as marked, untrusted data', () => {
 test('migrations are safe to run twice', async () => {
   const db = await openDb({ file: ':memory:' });
   await migrate(db);
-  assert.equal((await db.all('SELECT * FROM email_migrations')).length, 1);
+  const files = fs.readdirSync('migrations').filter((f) => f.endsWith('.sql')).length;
+  assert.equal((await db.all('SELECT * FROM email_migrations')).length, files);
 });
 
 test('snooze words', () => {
