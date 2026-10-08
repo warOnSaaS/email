@@ -153,3 +153,7 @@ body.gate{display:grid;place-items:center;min-height:100svh;padding:16px;margin:
   .tbl td,.tbl th{padding:9px 10px}
   .ui-dialog.compose{margin:auto 0 0;width:100%;max-width:100%;border-radius:var(--ui-radius-lg) var(--ui-radius-lg) 0 0;padding:var(--ui-s5)}
 }
+
+/* Page to page without a blank flash */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
